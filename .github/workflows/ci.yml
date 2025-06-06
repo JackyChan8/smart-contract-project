@@ -27,10 +27,10 @@ jobs:
           NEXT_PUBLIC_CONTRACT_ADDRESS_TEST: '0x93185cd093da4Fc2029270eF52fB6d9118956796'
         run: npm run build
 
-      - name: Save SSH private key (Base64-decoded)
+      - name: Save SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_KEY_FRONTEND_SMART_CONTRACT }}" | base64 -d > ~/.ssh/id_rsa
+          echo "${{ secrets.DEPLOY_KEY_FRONTEND_SMART_CONTRACT }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
       - name: Start ssh-agent & add key
@@ -44,17 +44,17 @@ jobs:
 
       - name: Test SSH connection
         run: |
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -p ${{ secrets.REMOTE_PORT }} \
-            ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} \
+          ssh -v -i ~/.ssh/id_rsa -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
+              ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} \
             "echo 'SSH connection works!'; exit"
 
-      - name: Deploy build to /opt/smart_contract_frontend
+      - name: Deploy build to /opt/projects/smart_contract_frontend
         run: |
           tar -czf - -C out . \
             | ssh -o StrictHostKeyChecking=no \
                   -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
                   ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} \
-              "sudo mkdir -p /opt/smart_contract_frontend && sudo tar -xz -C /opt/smart_contract_frontend"
+              "sudo mkdir -p /opt/projects/smart_contract_frontend && sudo tar -xz -C /opt/projects/smart_contract_frontend"
 
       - name: Ensure Node.js & PM2 are installed
         run: |
@@ -79,5 +79,5 @@ jobs:
               -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
               ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} << 'EOF'
             pm2 delete smart-contract-frontend || true
-            pm2 serve /opt/smart_contract_frontend 3000 --name smart-contract-frontend --spa
+            pm2 serve /opt/projects/smart_contract_frontend 19800 --name smart-contract-frontend --spa
           EOF
