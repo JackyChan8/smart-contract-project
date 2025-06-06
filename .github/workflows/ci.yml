@@ -2,14 +2,14 @@ name: Deploy Next.js Static to Remote
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
       - name: Setup Node.js 20.x
         uses: actions/setup-node@v3
@@ -20,20 +20,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build and export static HTML
-        run: |
-          npm run build
-          npm run export
-
-      - name: Debug list files in out
-        run: |
-          echo "Local out contents:"
-          ls -Rlh out
+      - name: Build static export
+        env:
+          NEXT_PUBLIC_BACKEND_LINK: 'https://fckomercanmoms.xyz'
+        run: npm run build
 
       - name: Save SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_KEY_FRONTEND_SMART_CONTRACT }}" | tr -d '\r' > ~/.ssh/id_rsa
+          echo "${{ secrets.DEPLOY_KEY_FRONTEND_SMART_CONTRACT }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
       - name: Start ssh-agent & add key
@@ -44,45 +39,27 @@ jobs:
       - name: Add remote host to known_hosts
         run: |
           ssh-keyscan -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} ${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} >> ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
 
       - name: Test SSH connection
         run: |
-          ssh -i ~/.ssh/id_rsa \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
-            -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
-            ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} \
-            "echo 'SSH works'; exit"
+          ssh -v -i ~/.ssh/id_rsa -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
+              ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} \
+            "echo 'SSH connection works!'; exit"
 
-      - name: Deploy build to /opt/smart_contract_frontend
+      - name: Deploy build to /opt/projects/smart_contract_frontend
         run: |
           tar -czf - -C out . \
-            | ssh -i ~/.ssh/id_rsa \
-                -o StrictHostKeyChecking=no \
-                -o UserKnownHostsFile=/dev/null \
-                -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
-                ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} \
-              "sudo mkdir -p /opt/smart_contract_frontend && \
-               sudo tar -xz -C /opt/smart_contract_frontend && \
-               sudo chown -R ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}: /opt/smart_contract_frontend"
-
-      - name: Debug list remote dir
-        run: |
-          ssh -i ~/.ssh/id_rsa \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
-            -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
-            ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} \
-            "echo 'Remote /opt/smart_contract_frontend:'; ls -Rlh /opt/smart_contract_frontend"
-
+            | ssh -o StrictHostKeyChecking=no \
+                  -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
+                  ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} \
+              "sudo mkdir -p /opt/projects/smart_contract_frontend && sudo tar -xz -C /opt/projects/smart_contract_frontend"
 
       - name: Ensure Node.js & PM2 are installed
         run: |
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+          ssh -o StrictHostKeyChecking=no \
               -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
               ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} << 'EOF'
-            # Устанавливаем Node.js (версии 20.x), если нет
+            # Устанавливаем Node.js (версии 20.x)
             if ! command -v node >/dev/null; then
               curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
               sudo apt-get install -y nodejs
@@ -96,9 +73,9 @@ jobs:
 
       - name: Serve static site via PM2
         run: |
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+          ssh -o StrictHostKeyChecking=no \
               -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
               ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} << 'EOF'
             pm2 delete smart-contract-frontend || true
-            pm2 serve /opt/smart_contract_frontend 3000 --name smart-contract-frontend --spa
+            pm2 serve /opt/projects/smart_contract_frontend 19800 --name smart-contract-frontend --spa
           EOF
