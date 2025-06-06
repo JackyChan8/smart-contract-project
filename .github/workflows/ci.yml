@@ -30,7 +30,7 @@ jobs:
       - name: Save SSH private key
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_rsa
+          printf '%s' "${{ secrets.DEPLOY_KEY_FRONTEND_SMART_CONTRACT }}" | tr -d '\r' > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
       - name: Start ssh-agent & add key
@@ -38,7 +38,7 @@ jobs:
           eval "$(ssh-agent -s)"
           ssh-add ~/.ssh/id_rsa
 
-      - name: Add remote to known_hosts
+      - name: Add remote host to known_hosts
         run: |
           ssh-keyscan -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} ${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} >> ~/.ssh/known_hosts
 
@@ -46,7 +46,7 @@ jobs:
         run: |
           ssh -i ~/.ssh/id_rsa -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
             ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} \
-            "echo 'OK'; exit"
+            "echo 'SSH connection works!'; exit"
 
       - name: Deploy build to /opt/smart_contract_frontend
         run: |
