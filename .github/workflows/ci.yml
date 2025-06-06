@@ -30,7 +30,7 @@ jobs:
       - name: Save SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_KEY_FRONTEND_SMART_CONTRACT }}" > ~/.ssh/id_rsa
+          echo "${{ secrets.DEPLOY_KEY_FRONTEND_SMART_CONTRACT }}" | tr -d '\r' > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
       - name: Start ssh-agent & add key
