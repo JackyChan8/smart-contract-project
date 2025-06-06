@@ -14,3 +14,6 @@ This is a Next.js project.
 
 - [Reown — Docs](https://docs.reown.com)
 - [Next.js — Docs](https://nextjs.org/docs)
+
+
+# Проект на NEXT JS смарт контракт
