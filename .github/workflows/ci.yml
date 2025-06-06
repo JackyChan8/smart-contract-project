@@ -22,7 +22,9 @@ jobs:
 
       - name: Build static export
         env:
-          NEXT_PUBLIC_BACKEND_LINK: 'https://fckomercanmoms.xyz'
+          NEXT_PUBLIC_PROJECT_ID: 'b0d5fc0d62ac2b962ce77d1e95d00899'
+          NEXT_PUBLIC_CONTRACT_ADDRESS: '0x7D081cF61a2F9Fc32A34dB372e9825ADbC9179aF'
+          NEXT_PUBLIC_CONTRACT_ADDRESS_TEST: '0x93185cd093da4Fc2029270eF52fB6d9118956796'
         run: npm run build
 
       - name: Save SSH key
