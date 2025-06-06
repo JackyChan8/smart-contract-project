@@ -32,7 +32,7 @@ createAppKit({
   metadata: {
     name: 'Reown AppKit Example',
     description: 'Hyperliquid + Reown AppKit + wagmi v2',
-    url: 'https://your-domain.com',
+    url: 'https://testing.squares-battle.ru',
     icons: ['https://assets.reown.com/reown-profile-pic.png'],
   },
   themeMode: 'dark',
