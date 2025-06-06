@@ -27,10 +27,10 @@ jobs:
           NEXT_PUBLIC_CONTRACT_ADDRESS_TEST: '0x93185cd093da4Fc2029270eF52fB6d9118956796'
         run: npm run build
 
-      - name: Save SSH private key
+      - name: Save SSH private key (Base64-decoded)
         run: |
           mkdir -p ~/.ssh
-          printf '%s' "${{ secrets.DEPLOY_KEY_FRONTEND_SMART_CONTRACT }}" | tr -d '\r' > ~/.ssh/id_rsa
+          echo "${{ secrets.DEPLOY_KEY_FRONTEND_SMART_CONTRACT }}" | base64 -d > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
       - name: Start ssh-agent & add key
@@ -44,8 +44,8 @@ jobs:
 
       - name: Test SSH connection
         run: |
-          ssh -i ~/.ssh/id_rsa -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
-            ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} \
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -p ${{ secrets.REMOTE_PORT }} \
+            ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} \
             "echo 'SSH connection works!'; exit"
 
       - name: Deploy build to /opt/smart_contract_frontend
