@@ -41,24 +41,26 @@ jobs:
       - name: Add remote host to known_hosts
         run: |
           ssh-keyscan -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} ${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
 
       - name: Test SSH connection
         run: |
-          ssh -i ~/.ssh/id_rsa -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
             ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} \
             "echo 'SSH connection works!'; exit"
 
       - name: Deploy build to /opt/projects/smart_contract_frontend
         run: |
           tar -czf - -C out . \
-            | ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
+            | ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
                   -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
                   ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} \
               "sudo mkdir -p /opt/projects/smart_contract_frontend && sudo tar -xz -C /opt/projects/smart_contract_frontend"
 
       - name: Ensure Node.js & PM2 are installed
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
               -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
               ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} << 'EOF'
             # Устанавливаем Node.js (версии 20.x), если нет
@@ -75,7 +77,7 @@ jobs:
 
       - name: Serve static site via PM2
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
               -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
               ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} << 'EOF'
             pm2 delete smart-contract-frontend || true
