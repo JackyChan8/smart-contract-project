@@ -2,14 +2,14 @@ name: Deploy Next.js Static to Remote
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
       - name: Setup Node.js 20.x
         uses: actions/setup-node@v3
@@ -20,33 +20,32 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build static export
-        env:
-          NEXT_PUBLIC_PROJECT_ID: 'b0d5fc0d62ac2b962ce77d1e95d00899'
-          NEXT_PUBLIC_CONTRACT_ADDRESS: '0x7D081cF61a2F9Fc32A34dB372e9825ADbC9179aF'
-          NEXT_PUBLIC_CONTRACT_ADDRESS_TEST: '0x93185cd093da4Fc2029270eF52fB6d9118956796'
-        run: npm run build
+      - name: Build and export static HTML
+        run: |
+          npm run build
+          npm run export
+
+      - name: Debug list files in out
+        run: |
+          echo "Local out contents:"
+          ls -Rlh out
 
       - name: Save SSH key
         run: |
           mkdir -p ~/.ssh
-          # Удаляем возможные \r, чтобы ключ был в *nix-формате
           echo "${{ secrets.DEPLOY_KEY_FRONTEND_SMART_CONTRACT }}" | tr -d '\r' > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
-      # 6. Запускаем ssh-agent и добавляем ключ
       - name: Start ssh-agent & add key
         run: |
           eval "$(ssh-agent -s)"
           ssh-add ~/.ssh/id_rsa
 
-      # 7. Добавляем хост в known_hosts, чтобы не падала проверка host key
       - name: Add remote host to known_hosts
         run: |
           ssh-keyscan -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} ${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      # 8. Тестовое SSH-подключение
       - name: Test SSH connection
         run: |
           ssh -i ~/.ssh/id_rsa \
@@ -54,15 +53,29 @@ jobs:
             -o UserKnownHostsFile=/dev/null \
             -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
             ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} \
-            "echo 'SSH connection works!'; exit"
+            "echo 'SSH works'; exit"
 
       - name: Deploy build to /opt/smart_contract_frontend
         run: |
           tar -czf - -C out . \
-            | ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-                  -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
-                  ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} \
-              "sudo mkdir -p /opt/smart_contract_frontend && sudo tar -xz -C /opt/smart_contract_frontend"
+            | ssh -i ~/.ssh/id_rsa \
+                -o StrictHostKeyChecking=no \
+                -o UserKnownHostsFile=/dev/null \
+                -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
+                ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} \
+              "sudo mkdir -p /opt/smart_contract_frontend && \
+               sudo tar -xz -C /opt/smart_contract_frontend && \
+               sudo chown -R ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}: /opt/smart_contract_frontend"
+
+      - name: Debug list remote dir
+        run: |
+          ssh -i ~/.ssh/id_rsa \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
+            ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} \
+            "echo 'Remote /opt/smart_contract_frontend:'; ls -Rlh /opt/smart_contract_frontend"
+
 
       - name: Ensure Node.js & PM2 are installed
         run: |
