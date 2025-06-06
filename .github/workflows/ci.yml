@@ -30,22 +30,28 @@ jobs:
       - name: Save SSH key
         run: |
           mkdir -p ~/.ssh
+          # Удаляем возможные \r, чтобы ключ был в *nix-формате
           echo "${{ secrets.DEPLOY_KEY_FRONTEND_SMART_CONTRACT }}" | tr -d '\r' > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
+      # 6. Запускаем ssh-agent и добавляем ключ
       - name: Start ssh-agent & add key
         run: |
           eval "$(ssh-agent -s)"
           ssh-add ~/.ssh/id_rsa
 
+      # 7. Добавляем хост в known_hosts, чтобы не падала проверка host key
       - name: Add remote host to known_hosts
         run: |
           ssh-keyscan -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} ${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
+      # 8. Тестовое SSH-подключение
       - name: Test SSH connection
         run: |
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+          ssh -i ~/.ssh/id_rsa \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
             -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
             ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} \
             "echo 'SSH connection works!'; exit"
