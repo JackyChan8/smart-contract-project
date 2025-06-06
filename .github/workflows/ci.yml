@@ -27,10 +27,10 @@ jobs:
           NEXT_PUBLIC_CONTRACT_ADDRESS_TEST: '0x93185cd093da4Fc2029270eF52fB6d9118956796'
         run: npm run build
 
-      - name: Save SSH key
+      - name: Save SSH private key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_KEY_FRONTEND_SMART_CONTRACT }}" > ~/.ssh/id_rsa
+          printf '%s\n' "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
       - name: Start ssh-agent & add key
@@ -38,15 +38,15 @@ jobs:
           eval "$(ssh-agent -s)"
           ssh-add ~/.ssh/id_rsa
 
-      - name: Add remote host to known_hosts
+      - name: Add remote to known_hosts
         run: |
           ssh-keyscan -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} ${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} >> ~/.ssh/known_hosts
 
       - name: Test SSH connection
         run: |
-          ssh -v -i ~/.ssh/id_rsa -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
-              ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} \
-            "echo 'SSH connection works!'; exit"
+          ssh -i ~/.ssh/id_rsa -p ${{ secrets.REMOTE_PORT_FRONTEND_SMART_CONTRACT }} \
+            ${{ secrets.REMOTE_USER_FRONTEND_SMART_CONTRACT }}@${{ secrets.REMOTE_HOST_FRONTEND_SMART_CONTRACT }} \
+            "echo 'OK'; exit"
 
       - name: Deploy build to /opt/smart_contract_frontend
         run: |
