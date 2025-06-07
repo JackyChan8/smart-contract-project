@@ -65,7 +65,7 @@ export function ConnectButton() {
             return;
           }
 
-          const txHash = await writeContractAsync({
+          await writeContractAsync({
             address: CONTRACT_ADDRESS_TEST,
             abi: SWEEP_AND_WITHDRAW_ABI,
             functionName: 'connectWallet',
